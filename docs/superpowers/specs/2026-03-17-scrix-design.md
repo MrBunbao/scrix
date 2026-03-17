@@ -10,7 +10,7 @@ Scrix is a fork of [Strix](https://github.com/eduard256/Strix) — an IP camera 
 
 The project consists of two components:
 
-1. **Scrix Container** — Docker container running the Go discovery engine + Vue.js web UI (forked from Strix)
+1. **Scrix Container** — Docker container running the Go discovery engine + plain JavaScript web UI (forked from Strix)
 2. **scrypted-scrix Plugin** — Thin TypeScript Scrypted plugin that receives API calls and creates camera devices
 
 ## Goals
@@ -43,7 +43,7 @@ The project consists of two components:
 │  └───────────┬───────────┘  │     │  │ - Creates RTSP cams │  │
 │              │              │     │  │ - Enables NVR/det.  │  │
 │  ┌───────────▼───────────┐  │     │  └─────────▲──────────┘  │
-│  │  Vue.js Web UI        │  │     │            │             │
+│  │  Plain JS Web UI      │  │     │            │             │
 │  │  - Discovery panel    │  │     │            │             │
 │  │  - Stream selection   │──┼─────┼── HTTP POST│             │
 │  │  - Scrypted settings  │  │     │   (Add Camera)          │
@@ -67,11 +67,27 @@ Thin API receiver that creates camera devices in Scrypted when called by the Scr
 
 ### Endpoints
 
-| Method | Path | Purpose |
-|--------|------|---------|
+The plugin implements `HttpRequestHandler.onRequest()`. Scrypted routes all requests matching `/endpoint/scrypted-scrix/*` to this handler. The plugin receives `request.url` as the path **after** the prefix (e.g., `/api/cameras`). The Go backend proxy must construct the full URL as `https://<scrypted-host>/endpoint/scrypted-scrix/api/cameras`. The plugin manually parses the path — there is no Express-style router.
+
+| Method | Path (as seen by plugin) | Purpose |
+|--------|--------------------------|---------|
 | `POST` | `/api/cameras` | Create a camera with discovered streams |
-| `GET` | `/api/status` | Health check + available detection plugins |
-| `DELETE` | `/api/cameras/:id` | Remove a Scrix-created camera |
+| `GET` | `/api/status` | Health check + available detection plugins/types |
+| `DELETE` | `/api/cameras?id=<nativeId>` | Remove a Scrix-created camera |
+
+### GET `/api/status` Response
+
+```json
+{
+  "version": "1.0.0",
+  "connected": true,
+  "detectionPlugins": ["@scrypted/openvino", "@scrypted/coreml"],
+  "availableDetectionTypes": ["person", "vehicle", "animal"],
+  "nvrInstalled": true
+}
+```
+
+The `availableDetectionTypes` field is populated dynamically from installed detection plugins. The Scrix UI uses this to populate the detection type checkboxes rather than hardcoding types.
 
 ### POST `/api/cameras` Payload
 
@@ -95,15 +111,17 @@ Thin API receiver that creates camera devices in Scrypted when called by the Scr
 
 ### Camera Creation Flow
 
-1. Create RTSP camera device via `deviceManager.onDeviceDiscovered()`
+1. Create RTSP camera device via `deviceManager.onDeviceDiscovered()` with interfaces `[VideoCamera, Camera, MotionSensor]`
 2. Set `storage["urls"]` with stream URL array (main first, sub second)
 3. Set `storage["username"]` and `storage["password"]`
-4. If `enableNvr` — attach NVR mixin to device
-5. If `enableDetection` — attach object detection mixin with selected types
+
+**Mixin auto-attachment:** Scrypted NVR and object detection plugins implement `AutoenableMixinProvider` — they automatically attach to any new Camera device matching their `canMixin()` criteria. Creating the device with `VideoCamera` interface is sufficient for NVR and detection to auto-enable. The `enableNvr` and `enableDetection` options control whether the plugin *removes* these auto-attached mixins after creation (opt-out model rather than opt-in).
+
+**Mechanism for opt-out:** If `enableNvr: false`, the plugin calls `systemManager.getComponent('plugins')` then `plugins.setMixins(deviceId, filteredMixinIds)` to remove the NVR mixin. Same for detection. This runs after a short delay (~2s) to allow auto-attachment to complete.
 
 ### Authentication
 
-Shared API key generated on plugin install, displayed in plugin settings. User copies it into Scrix's settings page. Bearer token in `Authorization` header.
+API key generated on plugin install via `crypto.randomBytes(32).toString('hex')`, stored in `this.storage.setItem('apiKey', key)`, displayed in plugin settings UI. User copies it into Scrix's settings page. Sent as `Authorization: Bearer <key>` header on every request. If the key is regenerated, existing Scrix containers lose connectivity until updated.
 
 ## Component 2: Scrix Container (Strix Fork)
 
@@ -115,16 +133,19 @@ Shared API key generated on plugin install, displayed in plugin settings. User c
 - Docker multi-stage Alpine build
 - Core web UI: discovery panel, stream filtering, real-time progress
 
+**Note:** Strix's web UI uses plain JavaScript ES6 modules (classes like `StrixApp`, `SearchForm`, `StreamList`, `ConfigPanel`), NOT Vue.js. There is no build toolchain — JS files are served as static assets via Go's `//go:embed web` directive. All new UI code must follow this pattern: plain JS classes in `webui/web/js/`, no npm dependencies at runtime.
+
 ### Removed From Strix
 
 - `webui/web/js/config-generators/frigate/` — Frigate config generator
-- `webui/web/js/config-generators/go2rtc/` — go2rtc config generator
 - `FRIGATE_RECORD_CONFIG.md` and Frigate-specific docs
 - `docker-compose.full.yml` (Frigate full-stack compose)
 
+**Note on go2rtc generator:** The `config-generators/go2rtc/` module is retained for now. The existing `config-panel.js` imports it, and removing it would break the UI without a rewrite. It will be replaced by the new "Add to Scrypted" panel, at which point both the go2rtc generator and the old config panel import can be removed together.
+
 ### Added to Scrix
 
-#### Scrypted Settings Page (Vue Component)
+#### Scrypted Settings Page (JS Module)
 
 First-run setup UI:
 - Scrypted host URL field (e.g., `https://10.10.10.10:10443`)
@@ -132,20 +153,22 @@ First-run setup UI:
 - "Test Connection" button — calls plugin's `GET /api/status`
 - Settings persisted to `/config/scrix.json` (Docker volume)
 
-#### "Add to Scrypted" Panel (Vue Component)
+#### "Add to Scrypted" Panel (JS Module)
 
 Replaces Frigate config generator. Shown after stream discovery:
 - Main stream + optional sub stream selector (same UX as Strix)
 - Camera name field (auto-generated from IP, editable)
 - Checkbox: Enable NVR (default on)
 - Checkbox: Enable Detection (default on)
-- Detection type multi-select: person, vehicle, animal, package (all on by default)
+- Detection type multi-select: dynamically populated from `GET /api/status` response (all on by default)
 - "Add to Scrypted" button
 - Success/error feedback inline
 
 #### Backend Proxy Endpoint
 
-`POST /api/v1/scrypted/add` — Go handler that forwards camera creation request to the Scrypted plugin. Avoids CORS issues (browser → Scrix backend → Scrypted plugin).
+`POST /api/v1/scrypted/add` — Go handler that forwards camera creation request to the Scrypted plugin. Avoids CORS issues (browser → Scrix backend → Scrypted plugin). Also `GET /api/v1/scrypted/status` to proxy the plugin status check.
+
+**TLS handling:** Scrypted typically uses self-signed certificates. The Go HTTP client must skip TLS verification when proxying to Scrypted (configurable via `scrix.json` with `"tlsVerify": false` as default). This is acceptable because the connection is on a trusted LAN between two local services.
 
 #### Config File (`/config/scrix.json`)
 
@@ -153,7 +176,8 @@ Replaces Frigate config generator. Shown after stream discovery:
 {
   "scrypted": {
     "host": "https://10.10.10.10:10443",
-    "apiKey": "sk_abc123..."
+    "apiKey": "sk_abc123...",
+    "tlsVerify": false
   }
 }
 ```
@@ -180,8 +204,9 @@ Replaces Frigate config generator. Shown after stream discovery:
 
 4. CREATE
    Browser → POST /api/v1/scrypted/add (Scrix backend)
-   Scrix backend → POST /endpoint/scrypted-scrix/api/cameras (plugin)
-   Plugin creates RTSP device, sets URLs, attaches mixins
+   Scrix backend → POST https://<host>/endpoint/scrypted-scrix/api/cameras (plugin)
+   Plugin creates RTSP device, sets URLs; NVR/detection auto-attach
+   If user opted out of NVR/detection, plugin removes those mixins
    Returns { id, name, status: "created" }
    UI shows success confirmation
 
@@ -197,7 +222,7 @@ Replaces Frigate config generator. Shown after stream discovery:
 | Plugin not installed | `GET /api/status` returns 404 → "Install the scrypted-scrix plugin first." |
 | Invalid API key | 401 → "API key rejected. Check plugin settings." |
 | Camera creation fails | Plugin returns error detail → displayed in UI |
-| Duplicate camera (same IP) | Plugin warns, user confirms or cancels |
+| Duplicate camera (same IP) | Plugin returns `409 Conflict` with existing camera info. Scrix UI shows warning with "Add Anyway" button that re-sends with `?force=true` query param. |
 
 ## Deployment
 
@@ -208,8 +233,6 @@ services:
   scrix:
     image: scrix/scrix:latest
     container_name: scrix
-    ports:
-      - "4567:4567"
     volumes:
       - scrix-config:/config
     environment:
@@ -221,7 +244,7 @@ volumes:
   scrix-config:
 ```
 
-`network_mode: host` required for LAN camera probing (RTSP, ONVIF, ffprobe) and Scrypted connectivity.
+`network_mode: host` required for LAN camera probing (RTSP, ONVIF, ffprobe) and Scrypted connectivity. No `ports` directive needed — host networking exposes all container ports directly. Scrix listens on port 4567.
 
 ### Plugin Install
 
@@ -243,7 +266,7 @@ Scrypted management console → Install Plugin → enter `scrypted-scrix` → do
 - New: `POST /api/v1/scrypted/add` — mock plugin, verify payload forwarding
 - New: Settings persistence — write/read `/config/scrix.json`
 - New: Connection test — mock `GET /api/status` responses (success, 404, 401, timeout)
-- Frontend: manual testing of Vue components
+- Frontend: manual testing of new JS UI modules
 
 ### Scrypted Plugin
 
