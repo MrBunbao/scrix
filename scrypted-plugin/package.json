@@ -2,7 +2,7 @@
   "name": "scrypted-scrix",
   "version": "1.0.0",
   "description": "Scrix — camera stream discovery bridge for Scrypted NVR",
-  "main": "dist/main.js",
+  "main": "main.js",
   "keywords": ["scrypted", "camera", "discovery", "nvr", "rtsp"],
   "author": "MrBunbao",
   "license": "MIT",

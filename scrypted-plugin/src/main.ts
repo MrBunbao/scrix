@@ -1,4 +1,3 @@
-import crypto from 'crypto';
 import sdk, {
     DeviceProvider,
     HttpRequest,
@@ -37,6 +36,20 @@ interface ManagedCamera {
     createdAt: string;
 }
 
+function generateHex(bytes: number): string {
+    try {
+        return require('crypto').randomBytes(bytes).toString('hex');
+    } catch {
+        // Fallback if crypto module unavailable in Scrypted runtime
+        const chars = '0123456789abcdef';
+        let result = '';
+        for (let i = 0; i < bytes * 2; i++) {
+            result += chars[Math.floor(Math.random() * 16)];
+        }
+        return result;
+    }
+}
+
 const nvrPluginId = '@scrypted/nvr';
 const detectionPluginIds = [
     '@scrypted/openvino',
@@ -51,7 +64,7 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
     constructor(nativeId?: string) {
         super(nativeId);
         if (!this.storage.getItem('apiKey')) {
-            const key = crypto.randomBytes(32).toString('hex');
+            const key = generateHex(32);
             this.storage.setItem('apiKey', key);
             this.console.log('Generated new API key. Copy it from plugin settings into Scrix.');
         }
@@ -80,7 +93,7 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
 
     async putSetting(key: string, value: SettingValue): Promise<void> {
         if (key === 'regenerateKey') {
-            const newKey = crypto.randomBytes(32).toString('hex');
+            const newKey = generateHex(32);
             this.storage.setItem('apiKey', newKey);
             this.console.log('API key regenerated.');
         }
@@ -234,7 +247,7 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
         // Check if this nativeId is already in use by another camera
         const allNativeIds = sdk.deviceManager.getNativeIds();
         if (allNativeIds.includes(nativeId)) {
-            nativeId = `scrix-${body.ip.replace(/\./g, '_')}-${crypto.randomBytes(4).toString('hex')}`;
+            nativeId = `scrix-${body.ip.replace(/\./g, '_')}-${generateHex(4)}`;
         }
 
         // Create the RTSP camera device in Scrypted
