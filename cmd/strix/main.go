@@ -13,6 +13,7 @@ import (
 
 	"github.com/MrBunbao/scrix/internal/api"
 	"github.com/MrBunbao/scrix/internal/config"
+	"github.com/MrBunbao/scrix/internal/scrypted"
 	"github.com/MrBunbao/scrix/internal/utils/logger"
 	"github.com/MrBunbao/scrix/webui"
 	"github.com/go-chi/chi/v5"
@@ -24,14 +25,14 @@ import (
 var Version = "dev"
 
 const Banner = `
-███████╗████████╗██████╗ ██╗██╗  ██╗
-██╔════╝╚══██╔══╝██╔══██╗██║╚██╗██╔╝
-███████╗   ██║   ██████╔╝██║ ╚███╔╝
-╚════██║   ██║   ██╔══██╗██║ ██╔██╗
-███████║   ██║   ██║  ██║██║██╔╝ ██╗
-╚══════╝   ╚═╝   ╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
+███████╗ ██████╗██████╗ ██╗██╗  ██╗
+██╔════╝██╔════╝██╔══██╗██║╚██╗██╔╝
+███████╗██║     ██████╔╝██║ ╚███╔╝
+╚════██║██║     ██╔══██╗██║ ██╔██╗
+███████║╚██████╗██║  ██║██║██╔╝ ██╗
+╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝╚═╝  ╚═╝
 
-Smart IP Camera Stream Discovery System
+Camera Stream Discovery for Scrypted NVR
 Version: %s
 `
 
@@ -39,6 +40,13 @@ func main() {
 	// Print banner
 	fmt.Printf(Banner, Version)
 	fmt.Println()
+
+	// Initialize Scrypted config path
+	configPath := os.Getenv("SCRIX_CONFIG_PATH")
+	if configPath == "" {
+		configPath = "/config"
+	}
+	scrypted.SetConfigPath(configPath)
 
 	// Load configuration
 	cfg := config.Load()
@@ -51,7 +59,7 @@ func main() {
 	// Create adapter for our interface
 	log := logger.NewAdapter(slogger)
 
-	log.Info("starting Strix",
+	log.Info("starting Scrix",
 		slog.String("version", Version),
 		slog.String("go_version", os.Getenv("GO_VERSION")),
 		slog.String("listen", cfg.Server.Listen),
