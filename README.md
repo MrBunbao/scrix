@@ -40,7 +40,7 @@ Open the plugin in Scrypted and copy the **API Key** from its settings.
 # docker-compose.yml
 services:
   scrix:
-    image: scrix/scrix:latest
+    image: mrbunbao/scrix:latest
     container_name: scrix
     volumes:
       - scrix-config:/config
@@ -80,10 +80,10 @@ Open **http://YOUR_SERVER_IP:4567**, click the gear icon, and enter:
 
 ```bash
 # For the same platform:
-docker build -t scrix/scrix:latest .
+docker build -t mrbunbao/scrix:latest .
 
 # Cross-compile for AMD64 (e.g., building on Mac for a Linux NAS):
-docker buildx build --platform linux/amd64 -t scrix/scrix:latest --load .
+docker buildx build --platform linux/amd64 -t mrbunbao/scrix:latest --load .
 ```
 
 ### Scrypted Plugin

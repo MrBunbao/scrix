@@ -1,6 +1,6 @@
 services:
   scrix:
-    image: scrix/scrix:latest
+    image: mrbunbao/scrix:latest
     container_name: scrix
     build: .
     volumes:
