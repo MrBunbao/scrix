@@ -1,4 +1,4 @@
-module github.com/eduard256/Strix
+module github.com/MrBunbao/scrix
 
 go 1.24.0
 

@@ -3,7 +3,7 @@ package stream
 import (
 	"testing"
 
-	"github.com/eduard256/Strix/internal/models"
+	"github.com/MrBunbao/scrix/internal/models"
 )
 
 // TestRealWorldDeduplication тестирует реальный сценарий:

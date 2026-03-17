@@ -11,10 +11,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/eduard256/Strix/internal/api"
-	"github.com/eduard256/Strix/internal/config"
-	"github.com/eduard256/Strix/internal/utils/logger"
-	"github.com/eduard256/Strix/webui"
+	"github.com/MrBunbao/scrix/internal/api"
+	"github.com/MrBunbao/scrix/internal/config"
+	"github.com/MrBunbao/scrix/internal/utils/logger"
+	"github.com/MrBunbao/scrix/webui"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -198,5 +198,5 @@ func printEndpoints(listen string) {
 	fmt.Printf("  Open in browser: %s\n", clickableURL)
 	fmt.Println("────────────────────────────────────────────────")
 
-	fmt.Println("\n📚 Documentation: https://github.com/eduard256/Strix")
+	fmt.Println("\n📚 Documentation: https://github.com/MrBunbao/scrix")
 }

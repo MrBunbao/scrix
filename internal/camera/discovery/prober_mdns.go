@@ -6,7 +6,7 @@ import (
 
 	"github.com/AlexxIT/go2rtc/pkg/hap"
 	"github.com/AlexxIT/go2rtc/pkg/mdns"
-	"github.com/eduard256/Strix/internal/models"
+	"github.com/MrBunbao/scrix/internal/models"
 )
 
 const (

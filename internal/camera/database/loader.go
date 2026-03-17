@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/eduard256/Strix/internal/models"
+	"github.com/MrBunbao/scrix/internal/models"
 )
 
 // Loader handles efficient loading of camera database

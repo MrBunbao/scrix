@@ -5,7 +5,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/eduard256/Strix/internal/camera/discovery"
+	"github.com/MrBunbao/scrix/internal/camera/discovery"
 )
 
 // ProbeHandler handles device probe requests.

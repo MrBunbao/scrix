@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eduard256/Strix/internal/models"
+	"github.com/MrBunbao/scrix/internal/models"
 )
 
 // mockLogger implements the logger interface for testing

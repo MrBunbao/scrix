@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eduard256/Strix/internal/models"
+	"github.com/MrBunbao/scrix/internal/models"
 )
 
 const (

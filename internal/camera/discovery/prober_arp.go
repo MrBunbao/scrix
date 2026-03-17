@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/eduard256/Strix/internal/models"
+	"github.com/MrBunbao/scrix/internal/models"
 )
 
 // ARPProber looks up the MAC address from the system ARP table

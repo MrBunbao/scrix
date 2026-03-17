@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/eduard256/Strix/internal/models"
+	"github.com/MrBunbao/scrix/internal/models"
 )
 
 // TestProtocolAuthBehaviorComparison проверяет разницу в генерации auth вариантов
