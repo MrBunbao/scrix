@@ -1351,7 +1351,7 @@ Read the existing CSS file(s) to find the styling patterns. Add styles for:
 - `.status-message` variants (`.status-success`, `.status-error`, `.status-info`, `.status-warning`)
 - `.checkbox-group`, `.checkbox-inline` — detection type checkboxes
 
-- [ ] **Step 5: Verify Go build (embed includes new files)**
+- [ ] **Step 7: Verify Go build (embed includes new files)**
 
 ```bash
 go build ./cmd/strix/
@@ -1359,18 +1359,18 @@ go build ./cmd/strix/
 
 The `//go:embed web` directive recursively includes all files under `webui/web/`, so new JS files are automatically included.
 
-- [ ] **Step 6: Test manually by running the binary**
+- [ ] **Step 8: Test manually by running the binary**
 
 ```bash
-./strix
+./strix  # binary is still named strix at this point; renamed in Task 14
 # Open http://localhost:4567 in browser
 # Verify settings page loads, discovery still works
 ```
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add webui/web/js/ui/config-panel.js webui/web/index.html
+git add webui/web/js/main.js webui/web/js/ui/config-panel.js webui/web/js/ui/scrypted-settings.js webui/web/js/ui/scrypted-panel.js webui/web/index.html webui/web/css/
 git commit -m "Integrate Scrypted settings and Add to Scrypted panel into UI"
 ```
 
