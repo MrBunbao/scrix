@@ -61,6 +61,54 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
         return token === this.storage.getItem('apiKey');
     }
 
+    // --- Status endpoint ---
+
+    private async handleStatus(response: HttpResponse): Promise<void> {
+        const plugins = await sdk.systemManager.getComponent('plugins');
+        const devices = sdk.systemManager.getSystemState();
+
+        let nvrInstalled = false;
+        const detectionPlugins: string[] = [];
+        const detectionTypes = new Set<string>();
+
+        for (const [id, device] of Object.entries(devices)) {
+            const interfaces = (device as any).interfaces?.value as string[] | undefined;
+            if (!interfaces) continue;
+            if (interfaces.includes(ScryptedInterface.ObjectDetection)) {
+                const pluginId = (device as any).pluginId?.value as string | undefined;
+                if (pluginId && !detectionPlugins.includes(pluginId)) {
+                    detectionPlugins.push(pluginId);
+                }
+            }
+        }
+
+        try {
+            const installedPlugins = await plugins.getInstalledPlugins();
+            nvrInstalled = installedPlugins.includes('@scrypted/nvr');
+        } catch {
+            nvrInstalled = false;
+        }
+
+        // v1: standard types when NVR or detection plugins present
+        const standardTypes = ['person', 'vehicle', 'animal'];
+        if (nvrInstalled || detectionPlugins.length > 0) {
+            standardTypes.forEach(t => detectionTypes.add(t));
+        }
+
+        const body = JSON.stringify({
+            version: '1.0.0',
+            connected: true,
+            detectionPlugins,
+            availableDetectionTypes: Array.from(detectionTypes),
+            nvrInstalled,
+        });
+
+        response.send(body, {
+            code: 200,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    }
+
     // --- HTTP handler ---
 
     async onRequest(request: HttpRequest, response: HttpResponse): Promise<void> {
@@ -70,6 +118,13 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
                 headers: { 'Content-Type': 'application/json' },
             });
             return;
+        }
+
+        const url = request.url || '';
+        const method = request.method || 'GET';
+
+        if (method === 'GET' && url.startsWith('/api/status')) {
+            return this.handleStatus(response);
         }
 
         response.send(JSON.stringify({ error: 'Not found' }), {
