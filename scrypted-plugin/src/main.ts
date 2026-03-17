@@ -1,15 +1,19 @@
 import sdk, {
     DeviceProvider,
+    FFmpegInput,
     HttpRequest,
     HttpRequestHandler,
     HttpResponse,
+    MediaObject,
     ScryptedDeviceBase,
     ScryptedDeviceType,
     ScryptedInterface,
+    ScryptedMimeTypes,
     ScryptedNativeId,
     Setting,
     Settings,
     SettingValue,
+    VideoCamera,
 } from '@scrypted/sdk';
 
 interface CameraRequest {
@@ -434,11 +438,98 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
 
     // --- DeviceProvider ---
 
+    private devices = new Map<string, ScrixCamera>();
+
     async getDevice(nativeId: ScryptedNativeId): Promise<any> {
-        return new ScryptedDeviceBase(nativeId);
+        if (!nativeId) return undefined;
+        let device = this.devices.get(nativeId);
+        if (!device) {
+            device = new ScrixCamera(nativeId);
+            this.devices.set(nativeId, device);
+        }
+        return device;
     }
 
-    async releaseDevice(id: string, nativeId: string): Promise<void> {}
+    async releaseDevice(id: string, nativeId: string): Promise<void> {
+        this.devices.delete(nativeId);
+    }
+}
+
+class ScrixCamera extends ScryptedDeviceBase implements VideoCamera, Settings {
+    constructor(nativeId: string) {
+        super(nativeId);
+    }
+
+    async getVideoStream(): Promise<MediaObject> {
+        const mainUrl = this.storage.getItem('mainStreamUrl');
+        if (!mainUrl) {
+            throw new Error('No stream URL configured for this camera');
+        }
+
+        const ffmpegInput: FFmpegInput = {
+            url: mainUrl,
+            inputArguments: [
+                '-i', mainUrl,
+            ],
+        };
+
+        return sdk.mediaManager.createFFmpegMediaObject(ffmpegInput);
+    }
+
+    async getVideoStreamOptions(): Promise<any[]> {
+        const options: any[] = [];
+        const mainUrl = this.storage.getItem('mainStreamUrl');
+        const subUrl = this.storage.getItem('subStreamUrl');
+
+        if (mainUrl) {
+            options.push({
+                id: 'main',
+                name: 'Main Stream',
+                video: { codec: 'h264' },
+            });
+        }
+        if (subUrl) {
+            options.push({
+                id: 'sub',
+                name: 'Sub Stream',
+                video: { codec: 'h264' },
+            });
+        }
+        return options;
+    }
+
+    async getSettings(): Promise<Setting[]> {
+        return [
+            {
+                key: 'mainStreamUrl',
+                title: 'Main Stream URL',
+                value: this.storage.getItem('mainStreamUrl') || '',
+                type: 'string',
+            },
+            {
+                key: 'subStreamUrl',
+                title: 'Sub Stream URL',
+                value: this.storage.getItem('subStreamUrl') || '',
+                type: 'string',
+            },
+            {
+                key: 'username',
+                title: 'Username',
+                value: this.storage.getItem('username') || '',
+                type: 'string',
+            },
+            {
+                key: 'password',
+                title: 'Password',
+                value: this.storage.getItem('password') || '',
+                type: 'password',
+            },
+        ];
+    }
+
+    async putSetting(key: string, value: SettingValue): Promise<void> {
+        this.storage.setItem(key, String(value));
+    }
 }
 
 export default ScrixPlugin;
