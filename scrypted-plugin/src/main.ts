@@ -332,6 +332,57 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
         });
     }
 
+    // --- Camera deletion endpoint ---
+
+    private async handleDeleteCamera(request: HttpRequest, response: HttpResponse): Promise<void> {
+        const url = request.url || '';
+        const params = new URLSearchParams(url.split('?')[1] || '');
+        const id = params.get('id');
+
+        if (!id) {
+            response.send(JSON.stringify({ error: 'Missing required query parameter: id' }), {
+                code: 400,
+                headers: { 'Content-Type': 'application/json' },
+            });
+            return;
+        }
+
+        // Find in managed cameras by scryptedId or nativeId
+        const cameras = this.getManagedCameras();
+        const camera = cameras.find(c => c.scryptedId === id || c.nativeId === id);
+
+        if (!camera) {
+            response.send(JSON.stringify({ error: `Camera not found: ${id}` }), {
+                code: 404,
+                headers: { 'Content-Type': 'application/json' },
+            });
+            return;
+        }
+
+        try {
+            await sdk.deviceManager.onDeviceRemoved(camera.nativeId);
+            this.removeManagedCamera(camera.nativeId);
+            this.console.log(`Deleted camera "${camera.name}" (nativeId: ${camera.nativeId}).`);
+
+            response.send(JSON.stringify({
+                deleted: true,
+                id: camera.scryptedId,
+                nativeId: camera.nativeId,
+                name: camera.name,
+            }), {
+                code: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        } catch (e) {
+            response.send(JSON.stringify({
+                error: `Failed to delete camera: ${e}`,
+            }), {
+                code: 500,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
+    }
+
     // --- HTTP handler ---
 
     async onRequest(request: HttpRequest, response: HttpResponse): Promise<void> {
@@ -352,6 +403,10 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
 
         if (method === 'POST' && url.startsWith('/api/cameras')) {
             return this.handleCreateCamera(request, response);
+        }
+
+        if (method === 'DELETE' && url.startsWith('/api/cameras')) {
+            return this.handleDeleteCamera(request, response);
         }
 
         response.send(JSON.stringify({ error: 'Not found' }), {
