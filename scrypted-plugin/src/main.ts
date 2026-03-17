@@ -460,17 +460,27 @@ class ScrixCamera extends ScryptedDeviceBase implements VideoCamera, Settings {
         super(nativeId);
     }
 
-    async getVideoStream(): Promise<MediaObject> {
-        const mainUrl = this.storage.getItem('mainStreamUrl');
-        if (!mainUrl) {
+    async getVideoStream(options?: any): Promise<MediaObject> {
+        const streamId = options?.id;
+        let streamUrl: string | null;
+
+        if (streamId === 'sub') {
+            streamUrl = this.storage.getItem('subStreamUrl') || this.storage.getItem('mainStreamUrl');
+        } else {
+            streamUrl = this.storage.getItem('mainStreamUrl');
+        }
+
+        if (!streamUrl) {
             throw new Error('No stream URL configured for this camera');
         }
 
+        const isRtsp = streamUrl.toLowerCase().startsWith('rtsp://');
+
         const ffmpegInput: FFmpegInput = {
-            url: mainUrl,
-            inputArguments: [
-                '-i', mainUrl,
-            ],
+            url: streamUrl,
+            inputArguments: isRtsp
+                ? ['-rtsp_transport', 'tcp', '-i', streamUrl]
+                : ['-i', streamUrl],
         };
 
         return sdk.mediaManager.createFFmpegMediaObject(ffmpegInput);

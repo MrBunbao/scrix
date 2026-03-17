@@ -1994,16 +1994,24 @@ class ScrixCamera extends sdk_1.ScryptedDeviceBase {
     constructor(nativeId) {
         super(nativeId);
     }
-    async getVideoStream() {
-        const mainUrl = this.storage.getItem('mainStreamUrl');
-        if (!mainUrl) {
+    async getVideoStream(options) {
+        const streamId = options?.id;
+        let streamUrl;
+        if (streamId === 'sub') {
+            streamUrl = this.storage.getItem('subStreamUrl') || this.storage.getItem('mainStreamUrl');
+        }
+        else {
+            streamUrl = this.storage.getItem('mainStreamUrl');
+        }
+        if (!streamUrl) {
             throw new Error('No stream URL configured for this camera');
         }
+        const isRtsp = streamUrl.toLowerCase().startsWith('rtsp://');
         const ffmpegInput = {
-            url: mainUrl,
-            inputArguments: [
-                '-i', mainUrl,
-            ],
+            url: streamUrl,
+            inputArguments: isRtsp
+                ? ['-rtsp_transport', 'tcp', '-i', streamUrl]
+                : ['-i', streamUrl],
         };
         return sdk_1.default.mediaManager.createFFmpegMediaObject(ffmpegInput);
     }
