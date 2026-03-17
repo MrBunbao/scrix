@@ -6,7 +6,6 @@ import { MockStreamAPI } from './mock/mock-stream-api.js';
 import { SearchForm } from './ui/search-form.js';
 import { StreamList } from './ui/stream-list.js';
 import { ConfigPanel } from './ui/config-panel.js';
-import { FrigateGenerator } from './config-generators/frigate/index.js';
 import { showToast } from './utils/toast.js';
 import { showModal } from './ui/modal.js';
 
@@ -43,8 +42,6 @@ class StrixApp {
         this.selectedMainStream = null;
         this.selectedSubStream = null;
         this.isSelectingSubStream = false;
-        this.frigateConfigGenerated = false; // Track if Frigate config has been generated
-
         this.init();
     }
 
@@ -143,9 +140,6 @@ class StrixApp {
 
         document.getElementById('btn-add-sub-stream').addEventListener('click', () => this.addSubStream());
         document.getElementById('btn-remove-sub').addEventListener('click', () => this.removeSubStream());
-
-        // Frigate config generation
-        document.getElementById('btn-generate-frigate').addEventListener('click', () => this.generateFrigateConfig());
 
         document.getElementById('btn-new-search').addEventListener('click', () => {
             this.reset();
@@ -457,22 +451,16 @@ class StrixApp {
             // Selecting main stream
             this.selectedMainStream = stream;
             this.selectedSubStream = null;
-            this.frigateConfigGenerated = false; // Reset Frigate config state
             this.configPanel.render(this.selectedMainStream, this.selectedSubStream);
             this.updateSubStreamUI();
             this.showScreen('output');
-            // Hide action buttons initially since Frigate tab is active by default
-            document.querySelector('.actions').style.display = 'none';
         } else {
             // Selecting sub stream
             this.selectedSubStream = stream;
             this.isSelectingSubStream = false;
-            this.frigateConfigGenerated = false; // Reset Frigate config state
             this.configPanel.render(this.selectedMainStream, this.selectedSubStream);
             this.updateSubStreamUI();
             this.showScreen('output');
-            // Hide action buttons initially since Frigate tab is active by default
-            document.querySelector('.actions').style.display = 'none';
         }
     }
 
@@ -483,10 +471,6 @@ class StrixApp {
         }
 
         this.isSelectingSubStream = true;
-
-        // Clear Frigate output section (but NOT the user's input textarea)
-        document.getElementById('frigate-output-section').classList.add('hidden');
-        document.getElementById('config-frigate').textContent = '';
 
         // Set stream list to sub selection mode (will collapse Main, show Sub)
         this.streamList.setSelectionMode('sub');
@@ -500,55 +484,10 @@ class StrixApp {
 
     removeSubStream() {
         this.selectedSubStream = null;
-        this.frigateConfigGenerated = false; // Reset Frigate config state when sub stream is removed
         this.configPanel.render(this.selectedMainStream, this.selectedSubStream);
         this.updateSubStreamUI();
 
-        // Hide action buttons if on Frigate tab
-        const activeTab = document.querySelector('.tab.active').dataset.tab;
-        if (activeTab === 'frigate') {
-            document.querySelector('.actions').style.display = 'none';
-        }
-
         showToast('Sub stream removed');
-    }
-
-    /**
-     * Generate Frigate config by adding camera to existing config
-     */
-    generateFrigateConfig() {
-        const existingConfig = document.getElementById('existing-frigate-config').value;
-        const mainStream = this.selectedMainStream;
-        const subStream = this.selectedSubStream;
-
-        if (!mainStream) {
-            showToast('No main stream selected', 'error');
-            return;
-        }
-
-        try {
-            // Generate config using FrigateGenerator
-            const newConfig = FrigateGenerator.generate(existingConfig, mainStream, subStream);
-
-            // Show result
-            document.getElementById('config-frigate').textContent = newConfig;
-            document.getElementById('frigate-output-section').classList.remove('hidden');
-
-            // Mark as generated and show action buttons
-            this.frigateConfigGenerated = true;
-            document.querySelector('.actions').style.display = 'flex';
-
-            // Scroll to result
-            document.getElementById('frigate-output-section').scrollIntoView({
-                behavior: 'smooth',
-                block: 'nearest'
-            });
-
-            showToast('Config generated successfully!');
-        } catch (error) {
-            showToast(`Error: ${error.message}`, 'error');
-            console.error('Config generation error:', error);
-        }
     }
 
     updateSubStreamUI() {
@@ -572,16 +511,6 @@ class StrixApp {
         // Update tab panes
         document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
         document.querySelector(`.tab-pane[data-pane="${tabName}"]`).classList.add('active');
-
-        // Show/hide action buttons based on tab and Frigate config state
-        const actionsContainer = document.querySelector('.actions');
-        if (tabName === 'frigate' && !this.frigateConfigGenerated) {
-            // Hide buttons on Frigate tab until config is generated
-            actionsContainer.style.display = 'none';
-        } else {
-            // Show buttons for other tabs or after Frigate config is generated
-            actionsContainer.style.display = 'flex';
-        }
     }
 
     copyConfig() {
