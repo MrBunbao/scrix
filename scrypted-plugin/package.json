@@ -1,0 +1,26 @@
+{
+  "name": "scrypted-scrix",
+  "version": "1.0.0",
+  "description": "Scrix — camera stream discovery bridge for Scrypted NVR",
+  "main": "dist/main.js",
+  "keywords": ["scrypted", "camera", "discovery", "nvr", "rtsp"],
+  "author": "MrBunbao",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "scrypted": {
+    "name": "Scrix Camera Discovery",
+    "type": "API",
+    "interfaces": [
+      "HttpRequestHandler",
+      "DeviceProvider",
+      "Settings"
+    ]
+  },
+  "devDependencies": {
+    "@scrypted/sdk": "latest",
+    "typescript": "^5.0.0"
+  }
+}
