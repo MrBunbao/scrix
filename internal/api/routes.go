@@ -149,6 +149,14 @@ func (s *Server) setupRoutes() {
 
 	// Device probe (ping + DNS + ARP/OUI + mDNS)
 	s.router.Get("/probe", handlers.NewProbeHandler(s.probeService, s.logger).ServeHTTP)
+
+	// Scrypted proxy and settings
+	scryptedHandler := handlers.NewScryptedHandler(s.logger)
+	s.router.Get("/scrypted/status", scryptedHandler.Status)
+	s.router.Post("/scrypted/add", scryptedHandler.AddCamera)
+	s.router.Delete("/scrypted/cameras", scryptedHandler.DeleteCamera)
+	s.router.Get("/scrypted/settings", scryptedHandler.GetSettings)
+	s.router.Post("/scrypted/settings", scryptedHandler.SaveSettings)
 }
 
 // ServeHTTP implements http.Handler
