@@ -13,6 +13,40 @@ import sdk, {
     SettingValue,
 } from '@scrypted/sdk';
 
+interface CameraRequest {
+    name: string;
+    ip: string;
+    streams: {
+        main: string;
+        sub?: string;
+    };
+    username?: string;
+    password?: string;
+    options?: {
+        enableNvr?: boolean;
+        enableDetection?: boolean;
+        detectionTypes?: string[];
+    };
+}
+
+interface ManagedCamera {
+    nativeId: string;
+    scryptedId: string;
+    name: string;
+    ip: string;
+    createdAt: string;
+}
+
+const nvrPluginId = '@scrypted/nvr';
+const detectionPluginIds = [
+    '@scrypted/openvino',
+    '@scrypted/coreml',
+    '@scrypted/onnx',
+    '@scrypted/tensorflow-lite',
+    '@scrypted/opencv',
+    '@scrypted/objectdetector',
+];
+
 class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, DeviceProvider, Settings {
     constructor(nativeId?: string) {
         super(nativeId);
@@ -109,6 +143,195 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
         });
     }
 
+    // --- Managed cameras helpers ---
+
+    private getManagedCameras(): ManagedCamera[] {
+        const raw = this.storage.getItem('managedCameras');
+        if (!raw) return [];
+        try {
+            return JSON.parse(raw) as ManagedCamera[];
+        } catch {
+            return [];
+        }
+    }
+
+    private saveManagedCameras(cameras: ManagedCamera[]): void {
+        this.storage.setItem('managedCameras', JSON.stringify(cameras));
+    }
+
+    private addManagedCamera(camera: ManagedCamera): void {
+        const cameras = this.getManagedCameras();
+        cameras.push(camera);
+        this.saveManagedCameras(cameras);
+    }
+
+    private removeManagedCamera(nativeId: string): void {
+        const cameras = this.getManagedCameras().filter(c => c.nativeId !== nativeId);
+        this.saveManagedCameras(cameras);
+    }
+
+    private findCameraByIp(ip: string): ManagedCamera | undefined {
+        return this.getManagedCameras().find(c => c.ip === ip);
+    }
+
+    // --- Camera creation endpoint ---
+
+    private async handleCreateCamera(request: HttpRequest, response: HttpResponse): Promise<void> {
+        let body: CameraRequest;
+        try {
+            body = JSON.parse(request.body || '{}');
+        } catch {
+            response.send(JSON.stringify({ error: 'Invalid JSON body' }), {
+                code: 400,
+                headers: { 'Content-Type': 'application/json' },
+            });
+            return;
+        }
+
+        // Validate required fields
+        if (!body.name || !body.ip || !body.streams?.main) {
+            response.send(JSON.stringify({
+                error: 'Missing required fields: name, ip, streams.main',
+            }), {
+                code: 400,
+                headers: { 'Content-Type': 'application/json' },
+            });
+            return;
+        }
+
+        // Check for duplicate IP
+        const url = request.url || '';
+        const params = new URLSearchParams(url.split('?')[1] || '');
+        const force = params.get('force') === 'true';
+
+        const existing = this.findCameraByIp(body.ip);
+        if (existing && !force) {
+            response.send(JSON.stringify({
+                error: `Camera already exists at IP ${body.ip}`,
+                existingId: existing.scryptedId,
+                existingNativeId: existing.nativeId,
+                hint: 'Use ?force=true to replace the existing camera.',
+            }), {
+                code: 409,
+                headers: { 'Content-Type': 'application/json' },
+            });
+            return;
+        }
+
+        // If force-replacing, remove the old device first
+        if (existing && force) {
+            try {
+                await sdk.deviceManager.onDeviceRemoved(existing.nativeId);
+                this.removeManagedCamera(existing.nativeId);
+                this.console.log(`Removed existing camera at IP ${body.ip} (force replace).`);
+            } catch (e) {
+                this.console.error(`Failed to remove existing camera: ${e}`);
+            }
+        }
+
+        // Generate nativeId: scrix-{ip_with_underscores} with crypto fallback
+        let nativeId = `scrix-${body.ip.replace(/\./g, '_')}`;
+        // Check if this nativeId is already in use by another camera
+        const allNativeIds = sdk.deviceManager.getNativeIds();
+        if (allNativeIds.includes(nativeId)) {
+            nativeId = `scrix-${body.ip.replace(/\./g, '_')}-${crypto.randomBytes(4).toString('hex')}`;
+        }
+
+        // Create the RTSP camera device in Scrypted
+        const scryptedId = await sdk.deviceManager.onDeviceDiscovered({
+            name: body.name,
+            nativeId,
+            type: ScryptedDeviceType.Camera,
+            interfaces: [
+                ScryptedInterface.VideoCamera,
+                ScryptedInterface.Settings,
+            ],
+            info: {
+                manufacturer: 'Scrix',
+                ip: body.ip,
+            },
+        });
+
+        // Store RTSP stream URLs in the device's storage
+        const deviceStorage = sdk.deviceManager.getDeviceStorage(nativeId);
+        if (deviceStorage) {
+            deviceStorage.setItem('ip', body.ip);
+            deviceStorage.setItem('mainStreamUrl', body.streams.main);
+            if (body.streams.sub) {
+                deviceStorage.setItem('subStreamUrl', body.streams.sub);
+            }
+            if (body.username) {
+                deviceStorage.setItem('username', body.username);
+            }
+            if (body.password) {
+                deviceStorage.setItem('password', body.password);
+            }
+        }
+
+        // Track the managed camera
+        const managedCamera: ManagedCamera = {
+            nativeId,
+            scryptedId,
+            name: body.name,
+            ip: body.ip,
+            createdAt: new Date().toISOString(),
+        };
+        this.addManagedCamera(managedCamera);
+
+        this.console.log(`Created camera "${body.name}" at ${body.ip} (nativeId: ${nativeId}, scryptedId: ${scryptedId}).`);
+
+        // Handle mixin opt-out after a short delay to let device initialize
+        const enableNvr = body.options?.enableNvr ?? true;
+        const enableDetection = body.options?.enableDetection ?? true;
+
+        if (!enableNvr || !enableDetection) {
+            setTimeout(async () => {
+                try {
+                    const device = sdk.systemManager.getDeviceById(scryptedId);
+                    if (!device) return;
+
+                    // Get current mixins
+                    const state = sdk.systemManager.getSystemState();
+                    const deviceState = state[scryptedId];
+                    const currentMixins = (deviceState as any)?.mixins?.value as string[] | undefined;
+                    if (!currentMixins || currentMixins.length === 0) return;
+
+                    // Build list of plugin IDs to exclude
+                    const excludeIds: string[] = [];
+                    if (!enableNvr) excludeIds.push(nvrPluginId);
+                    if (!enableDetection) excludeIds.push(...detectionPluginIds);
+
+                    // Filter out mixin devices that belong to excluded plugins
+                    const filteredMixins = currentMixins.filter(mixinId => {
+                        const mixinDevice = sdk.systemManager.getDeviceById(mixinId);
+                        if (!mixinDevice) return true;
+                        const mixinState = state[mixinId];
+                        const pluginId = (mixinState as any)?.pluginId?.value as string | undefined;
+                        return !pluginId || !excludeIds.includes(pluginId);
+                    });
+
+                    if (filteredMixins.length !== currentMixins.length) {
+                        await device.setMixins(filteredMixins);
+                        this.console.log(`Mixin opt-out applied for camera "${body.name}".`);
+                    }
+                } catch (e) {
+                    this.console.error(`Failed to apply mixin opt-out: ${e}`);
+                }
+            }, 2000);
+        }
+
+        response.send(JSON.stringify({
+            id: scryptedId,
+            nativeId,
+            name: body.name,
+            ip: body.ip,
+            created: true,
+        }), {
+            code: 201,
+            headers: { 'Content-Type': 'application/json' },
+        });
+    }
+
     // --- HTTP handler ---
 
     async onRequest(request: HttpRequest, response: HttpResponse): Promise<void> {
@@ -125,6 +348,10 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
 
         if (method === 'GET' && url.startsWith('/api/status')) {
             return this.handleStatus(response);
+        }
+
+        if (method === 'POST' && url.startsWith('/api/cameras')) {
+            return this.handleCreateCamera(request, response);
         }
 
         response.send(JSON.stringify({ error: 'Not found' }), {
