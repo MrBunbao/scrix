@@ -102,7 +102,8 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
     // --- Auth middleware ---
 
     private authenticate(request: HttpRequest): boolean {
-        const auth = request.headers?.authorization;
+        const headers = request.headers || {};
+        const auth = headers.authorization || (headers as any).Authorization;
         if (!auth) return false;
         const token = auth.replace('Bearer ', '');
         return token === this.storage.getItem('apiKey');
@@ -348,8 +349,8 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
     // --- Camera deletion endpoint ---
 
     private async handleDeleteCamera(request: HttpRequest, response: HttpResponse): Promise<void> {
-        const url = request.url || '';
-        const params = new URLSearchParams(url.split('?')[1] || '');
+        const rawUrl = request.url || '';
+        const params = new URLSearchParams(rawUrl.split('?')[1] || '');
         const id = params.get('id');
 
         if (!id) {
@@ -407,7 +408,10 @@ class ScrixPlugin extends ScryptedDeviceBase implements HttpRequestHandler, Devi
             return;
         }
 
-        const url = request.url || '';
+        const rawUrl = request.url || '';
+        const rootPath = request.rootPath || '';
+        // Strip the rootPath prefix to get the relative path
+        const url = rawUrl.startsWith(rootPath) ? rawUrl.slice(rootPath.length) : rawUrl;
         const method = request.method || 'GET';
 
         if (method === 'GET' && url.startsWith('/api/status')) {

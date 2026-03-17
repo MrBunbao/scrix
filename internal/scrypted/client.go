@@ -33,7 +33,7 @@ func NewClient(cfg *ScryptedConfig) *Client {
 }
 
 func (c *Client) pluginURL(path string) string {
-	return fmt.Sprintf("%s/endpoint/scrypted-scrix%s", c.baseURL, path)
+	return fmt.Sprintf("%s/endpoint/scrypted-scrix/public%s", c.baseURL, path)
 }
 
 func (c *Client) do(method, path string, body []byte) (int, []byte, error) {
