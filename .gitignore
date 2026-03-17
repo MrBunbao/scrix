@@ -48,3 +48,14 @@ strix.yaml
 # Node.js / NPM
 node_modules/
 package-lock.json
+
+# Scrypted plugin build artifacts
+scrypted-plugin/out/
+scrypted-plugin/dist/
+scrypted-plugin/*.tgz
+
+# Scrix binary
+scrix
+
+# Internal design docs
+docs/superpowers/
