@@ -6,6 +6,8 @@ import { MockStreamAPI } from './mock/mock-stream-api.js';
 import { SearchForm } from './ui/search-form.js';
 import { StreamList } from './ui/stream-list.js';
 import { ConfigPanel } from './ui/config-panel.js';
+import { ScryptedPanel } from './ui/scrypted-panel.js';
+import { ScryptedSettings } from './ui/scrypted-settings.js';
 import { showToast } from './utils/toast.js';
 import { showModal } from './ui/modal.js';
 
@@ -36,6 +38,17 @@ class StrixApp {
         this.searchForm = new SearchForm();
         this.streamList = new StreamList();
         this.configPanel = new ConfigPanel();
+
+        // Scrypted integration
+        const scryptedPanelContainer = document.getElementById('scrypted-panel-container');
+        if (scryptedPanelContainer) {
+            this.scryptedPanel = new ScryptedPanel(scryptedPanelContainer);
+        }
+
+        const scryptedSettingsContainer = document.getElementById('scrypted-settings-container');
+        if (scryptedSettingsContainer) {
+            this.scryptedSettings = new ScryptedSettings(scryptedSettingsContainer);
+        }
 
         this.currentAddress = '';
         this.currentStreams = [];
@@ -150,6 +163,21 @@ class StrixApp {
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
         });
+
+        // Scrypted settings toggle
+        const settingsBtn = document.getElementById('btn-scrypted-settings');
+        const settingsOverlay = document.getElementById('scrypted-settings-overlay');
+        if (settingsBtn && settingsOverlay) {
+            settingsBtn.addEventListener('click', () => {
+                settingsOverlay.classList.toggle('hidden');
+            });
+            const closeBtn = document.getElementById('btn-close-settings');
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    settingsOverlay.classList.add('hidden');
+                });
+            }
+        }
     }
 
     showScreen(screenName) {
@@ -452,6 +480,9 @@ class StrixApp {
             this.selectedMainStream = stream;
             this.selectedSubStream = null;
             this.configPanel.render(this.selectedMainStream, this.selectedSubStream);
+            if (this.scryptedPanel) {
+                this.scryptedPanel.setStreams(this.selectedMainStream, this.selectedSubStream);
+            }
             this.updateSubStreamUI();
             this.showScreen('output');
         } else {
@@ -459,6 +490,9 @@ class StrixApp {
             this.selectedSubStream = stream;
             this.isSelectingSubStream = false;
             this.configPanel.render(this.selectedMainStream, this.selectedSubStream);
+            if (this.scryptedPanel) {
+                this.scryptedPanel.setStreams(this.selectedMainStream, this.selectedSubStream);
+            }
             this.updateSubStreamUI();
             this.showScreen('output');
         }
@@ -485,6 +519,9 @@ class StrixApp {
     removeSubStream() {
         this.selectedSubStream = null;
         this.configPanel.render(this.selectedMainStream, this.selectedSubStream);
+        if (this.scryptedPanel) {
+            this.scryptedPanel.setStreams(this.selectedMainStream, this.selectedSubStream);
+        }
         this.updateSubStreamUI();
 
         showToast('Sub stream removed');

@@ -474,7 +474,7 @@ export class StreamList {
                             <code class="tooltip-example">✓ Two-way audio support</code>
                             <code class="tooltip-example">⚠ TCP only (port 34567)</code>
                         </div>
-                        <p class="tooltip-text"><strong>Note:</strong> Automatically converted to standard RTSP format by Go2RTC. Works seamlessly with Frigate without additional configuration.</p>
+                        <p class="tooltip-text"><strong>Note:</strong> Automatically converted to standard RTSP format by Go2RTC. Works seamlessly with Scrypted without additional configuration.</p>
                     </div>
                 </span>
             `
